@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>24/7 Radio Station</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #player { margin: 20px 0; }
+        #info { margin: 20px 0; }
+        #error-message { color: red; margin: 10px 0; }
+        #status-message { color: blue; margin: 10px 0; }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+    <h1>JAMM</h1>
+    <div id="player">
+        <audio id="audio-player" controls></audio>
+    </div>
+    <button id="toggle-button">Connect</button>
+    <div id="info">
+        <p>Current Song: <span id="current-song"></span></p>
+        <p>Next Up: <span id="next-song"></span></p>
+    </div>
+    <div id="status-message"></div>
+    <div id="error-message"></div>
+
+    <script>
+        const audioPlayer = document.getElementById('audio-player');
+        const toggleButton = document.getElementById('toggle-button');
+        const currentSongSpan = document.getElementById('current-song');
+        const nextSongSpan = document.getElementById('next-song');
+        const errorMessageDiv = document.getElementById('error-message');
+        const statusMessageDiv = document.getElementById('status-message');
+
+        let hls;
+
+        function showError(message) {
+            console.error(message);
+            errorMessageDiv.textContent = message;
+        }
+
+        function showStatus(message) {
+            console.log(message);
+            statusMessageDiv.textContent = message;
+        }
+
+        function initHlsPlayer() {
+            if (Hls.isSupported()) {
+                hls = new Hls({
+                    debug: true,
+                    enableWorker: true,
+                    lowLatencyMode: true,
+                    backBufferLength: 0
+                });
+                hls.loadSource('/stream/playlist.m3u8');
+                hls.attachMedia(audioPlayer);
+                hls.on(Hls.Events.MANIFEST_PARSED, function() {
+                    audioPlayer.play();
+                    showStatus('Stream loaded, playback starting...');
+                });
+                hls.on(Hls.Events.ERROR, function(event, data) {
+                    console.error('HLS.js error:', data);
+                    if (data.fatal) {
+                        switch(data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR:
+                                showError(`Network error: ${data.details}`);
+                                hls.startLoad();
+                                break;
+                            case Hls.ErrorTypes.MEDIA_ERROR:
+                                showError(`Media error: ${data.details}`);
+                                hls.recoverMediaError();
+                                break;
+                            default:
+                                showError(`Unrecoverable error: ${data.details}`);
+                                hls.destroy();
+                                break;
+                        }
+                    } else {
+                        showStatus(`Non-fatal error: ${data.details}`);
+                    }
+                });
+            } else if (audioPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+                audioPlayer.src = '/stream/playlist.m3u8';
+                audioPlayer.addEventListener('loadedmetadata', function() {
+                    audioPlayer.play();
+                    showStatus('Stream loaded, playback starting...');
+                });
+            } else {
+                showError('HLS is not supported in your browser');
+            }
+        }
+
+        toggleButton.addEventListener('click', function() {
+            if (audioPlayer.paused) {
+                initHlsPlayer();
+                toggleButton.textContent = 'Disconnect';
+                showStatus('Connecting to stream...');
+            } else {
+                audioPlayer.pause();
+                if (hls) {
+                    hls.destroy();
+                    hls = null;
+                }
+                audioPlayer.src = '';
+                toggleButton.textContent = 'Connect';
+                showStatus('Disconnected from stream');
+            }
+        });
+
+        function updateInfo() {
+            fetch('/get_info')
+                .then(response => response.json())
+                .then(data => {
+                    currentSongSpan.textContent = data.currentSong;
+                    nextSongSpan.textContent = data.nextSong;
+                })
+                .catch(error => {
+                    showError(`Error fetching song info: ${error.message}`);
+                });
+        }
+
+        // Update info every 2 seconds
+        setInterval(updateInfo, 2000);
+
+        // Initial update
+        updateInfo();
+    </script>
+</body>
+</html>
