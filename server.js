@@ -52,17 +52,24 @@ function getDuration(file) {
 }
 
 async function updateNowPlaying() {
-    const currentSong = path.basename(playlist[currentSongIndex]);
-    const nextSong = path.basename(playlist[(currentSongIndex + 1) % playlist.length]);
-    
+    const currentSong = path.basename(playlist[currentSongIndex], path.extname(playlist[currentSongIndex]));
+    const nextSong = path.basename(playlist[(currentSongIndex + 1) % playlist.length], path.extname(playlist[(currentSongIndex + 1) % playlist.length]));
+
+    // Split into artist and title assuming 'Artist - Song Title' format
+    const currentSongParts = currentSong.split(' - ');
+    const nextSongParts = nextSong.split(' - ');
+
     const state = {
-        currentSong: currentSong,
-        nextSong: nextSong
+        currentSongTitle: currentSongParts[1] || 'Unknown Title',
+        currentArtist: currentSongParts[0] || 'Unknown Artist',
+        nextSongTitle: nextSongParts[1] || 'Unknown Title',
+        nextArtist: nextSongParts[0] || 'Unknown Artist'
     };
+
     fs.writeFileSync('./public/radio_state.json', JSON.stringify(state));
     
     console.log(`Now playing: ${currentSong}`);
-    
+
     try {
         const duration = await getDuration(playlist[currentSongIndex]);
         currentSongIndex = (currentSongIndex + 1) % playlist.length;

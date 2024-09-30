@@ -1,5 +1,8 @@
 # JAMM
 music/
+/public/stream/
+playlist.txt
+/public/radio_state.json
 
 # Logs
 logs
