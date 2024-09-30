@@ -1,17 +1,15 @@
-const fs = require('fs');
-const path = require('path');
-const express = require('express');
-const { spawn } = require('child_process');
-const { EventEmitter } = require('events');
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const app = express();
-const port = 3000;
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const musicDir = './music';
+const musicDir = path.join(__dirname, '..', 'music');
 let playlist = [];
 let currentSongIndex = 0;
 let ffmpegProcess;
-const streamEvents = new EventEmitter();
 
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -55,7 +53,6 @@ async function updateNowPlaying() {
     const currentSong = path.basename(playlist[currentSongIndex], path.extname(playlist[currentSongIndex]));
     const nextSong = path.basename(playlist[(currentSongIndex + 1) % playlist.length], path.extname(playlist[(currentSongIndex + 1) % playlist.length]));
 
-    // Split into artist and title assuming 'Artist - Song Title' format
     const currentSongParts = currentSong.split(' - ');
     const nextSongParts = nextSong.split(' - ');
 
@@ -66,7 +63,11 @@ async function updateNowPlaying() {
         nextArtist: nextSongParts[0] || 'Unknown Artist'
     };
 
-    fs.writeFileSync('./public/radio_state.json', JSON.stringify(state));
+    const staticDir = path.join(__dirname, '..', 'static');
+    if (!fs.existsSync(staticDir)) {
+        fs.mkdirSync(staticDir, { recursive: true });
+    }
+    fs.writeFileSync(path.join(staticDir, 'radio_state.json'), JSON.stringify(state));
     
     console.log(`Now playing: ${currentSong}`);
 
@@ -77,14 +78,12 @@ async function updateNowPlaying() {
     } catch (error) {
         console.error('Error getting song duration:', error);
         currentSongIndex = (currentSongIndex + 1) % playlist.length;
-        setTimeout(updateNowPlaying, 5000); // Default to 5 seconds if there's an error
+        setTimeout(updateNowPlaying, 5000);
     }
 }
 
-loadPlaylist();
-
 function startStreaming() {
-    const playlistFile = path.join(__dirname, 'playlist.txt');
+    const playlistFile = path.join(__dirname, '..', 'playlist.txt');
     fs.writeFileSync(playlistFile, playlist.map(file => `file '${file}'`).join('\n'));
 
     console.log('Starting FFmpeg process...');
@@ -101,8 +100,8 @@ function startStreaming() {
         '-hls_time', '2',
         '-hls_list_size', '10',
         '-hls_flags', 'delete_segments',
-        '-hls_segment_filename', './public/stream/segment_%03d.ts',
-        './public/stream/playlist.m3u8'
+        '-hls_segment_filename', path.join(__dirname, '..', 'static', 'stream', 'segment_%03d.ts'),
+        path.join(__dirname, '..', 'static', 'stream', 'playlist.m3u8')
     ]);
 
     ffmpegProcess.stderr.on('data', (data) => {
@@ -116,29 +115,19 @@ function startStreaming() {
     });
 }
 
-app.use(express.static('public'));
-
-app.get('/get_info', (req, res) => {
-    const state = JSON.parse(fs.readFileSync('./public/radio_state.json', 'utf8'));
-    res.json(state);
-});
-
-app.get('/stream/playlist.m3u8', (req, res) => {
-    console.log('Playlist requested');
-    res.sendFile(path.join(__dirname, 'public', 'stream', 'playlist.m3u8'));
-});
-
-app.listen(port, () => {
-    console.log(`Web server running at http://localhost:${port}`);
-    // Ensure the stream directory exists
-    if (!fs.existsSync('./public/stream')) {
-        fs.mkdirSync('./public/stream', { recursive: true });
+export async function handle({ event, resolve }) {
+    if (!ffmpegProcess) {
+        loadPlaylist();
+        if (!fs.existsSync(path.join(__dirname, '..', 'static', 'stream'))) {
+            fs.mkdirSync(path.join(__dirname, '..', 'static', 'stream'), { recursive: true });
+        }
+        startStreaming();
+        updateNowPlaying();
     }
-    // Start streaming
-    startStreaming();
-    // Start updating now playing info
-    updateNowPlaying();
-});
+
+    const response = await resolve(event);
+    return response;
+}
 
 process.on('SIGINT', () => {
     if (ffmpegProcess) {
