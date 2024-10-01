@@ -129,12 +129,11 @@
 </svelte:head>
 
 <div class="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-screen">
-  <img src="/img/jamm.svg" alt="JAMM Logo" class="w-24 mb-12" />
+  <img src="/img/jamm.svg" alt="JAMM Logo" class="w-48 mb-4" />
+  <h1 class="text-2xl font-bold text-center mb-8 text-red-500">1990s MEGAMIX</h1>
   
   <div class="w-full max-w-md bg-gray-900 rounded-lg shadow-lg overflow-hidden">
-    <div class="p-8">
-      <h1 class="text-3xl font-bold text-center mb-6 text-red-500">Now Playing</h1>
-      
+    <div class="p-6 px-8">
       <div class="text-center mb-8">
         <h2 class="text-2xl font-semibold mb-2">{currentTrack.title}</h2>
         <p class="text-gray-400">{currentTrack.artist}</p>
@@ -173,9 +172,9 @@
       </div>
     </div>
     
-    <div class="bg-gray-800 p-4">
-      <h3 class="text-sm font-semibold text-gray-400 mb-2">Up Next</h3>
-      <p class="text-sm">{nextTrack.title} - {nextTrack.artist}</p>
+    <div class="bg-gray-800 p-4 text-center">
+      <h3 class="text-sm font-semibold text-red-500 uppercase">Up Next</h3>
+      <p class="text-sm text-gray-400">{nextTrack.title} - {nextTrack.artist}</p>
     </div>
   </div>
 
