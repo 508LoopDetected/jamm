@@ -82,15 +82,13 @@ async function updateNowPlaying() {
     }
 }
 
-function escapePath(filePath) {
-    // Escape single quotes and backslashes
-    return filePath.replace(/'/g, "'\\''").replace(/\\/g, '\\\\');
-}
-
 function startStreaming() {
     const playlistFile = path.join(__dirname, '..', 'playlist.txt');
-    const escapedPaths = playlist.map(file => `file '${escapePath(file)}'`);
-    fs.writeFileSync(playlistFile, escapedPaths.join('\n'));
+    
+    // Escape single quotes in file paths
+    const escapedPlaylist = playlist.map(file => `file '${file.replace(/'/g, "'\\''")}'`).join('\n');
+    
+    fs.writeFileSync(playlistFile, escapedPlaylist);
 
     console.log('Starting FFmpeg process...');
     ffmpegProcess = spawn('ffmpeg', [
@@ -120,6 +118,7 @@ function startStreaming() {
         startStreaming();
     });
 }
+
 
 export async function handle({ event, resolve }) {
     if (!ffmpegProcess) {
