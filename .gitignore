@@ -1,8 +1,8 @@
 # JAMM
 music/
-/static/stream/
+static/stream/
 playlist.txt
-/static/radio_state.json
+static/radio_state.json
 
 node_modules
 

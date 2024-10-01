@@ -7,10 +7,77 @@
   let isPlaying = false;
   let volume = 1;
   let audioPlayer;
+  let hls;
+  let errorMessage = '';
+
+  function handleAudioError(e) {
+    console.error('Audio player error:', e);
+    errorMessage = `Audio player error: ${e.target.error.message}`;
+  }
+
+  function initializeStream() {
+    if (Hls.isSupported()) {
+      console.log('Initializing HLS stream');
+      hls = new Hls();
+      hls.loadSource('/stream/playlist.m3u8');
+      hls.on(Hls.Events.ERROR, function (event, data) {
+        console.error('HLS error:', data);
+        errorMessage = `HLS error: ${data.type} - ${data.details}`;
+      });
+      audioPlayer = new Audio();
+      hls.attachMedia(audioPlayer);
+      hls.on(Hls.Events.MANIFEST_PARSED, function() {
+        audioPlayer.play().catch(e => {
+          console.error('Error playing audio:', e);
+          errorMessage = `Error playing audio: ${e.message}`;
+        });
+      });
+    } else if (audioPlayer.canPlayType('application/vnd.apple.mpegurl')) {
+      console.log('Initializing native HLS stream');
+      audioPlayer = new Audio('/stream/playlist.m3u8');
+      audioPlayer.play().catch(e => {
+        console.error('Error playing audio:', e);
+        errorMessage = `Error playing audio: ${e.message}`;
+      });
+    } else {
+      console.error('HLS is not supported in this browser');
+      errorMessage = 'HLS playback is not supported in this browser.';
+      return;
+    }
+
+    if (audioPlayer) {
+      audioPlayer.addEventListener('error', handleAudioError);
+
+      audioPlayer.addEventListener('playing', () => {
+        console.log('Audio started playing');
+        isPlaying = true;
+      });
+
+      audioPlayer.addEventListener('pause', () => {
+        console.log('Audio paused');
+        isPlaying = false;
+      });
+    }
+  }
+
+  function destroyStream() {
+    console.log('Destroying stream');
+    if (audioPlayer) {
+      audioPlayer.removeEventListener('error', handleAudioError);
+      audioPlayer.pause();
+      audioPlayer.src = '';
+      audioPlayer.load();
+    }
+    if (hls) {
+      hls.destroy();
+      hls = null;
+    }
+    audioPlayer = null;
+    isPlaying = false;
+    errorMessage = ''; // Clear any existing error messages
+  }
 
   onMount(() => {
-    audioPlayer = new Audio('/stream/playlist.m3u8');
-    
     const updateInfo = async () => {
       try {
         const response = await fetch('/get_info');
@@ -25,28 +92,41 @@
         };
       } catch (error) {
         console.error('Error fetching track info:', error);
+        errorMessage = `Error fetching track info: ${error.message}`;
       }
     };
 
     updateInfo();
     const interval = setInterval(updateInfo, 2000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      destroyStream();
+    };
   });
 
   function togglePlay() {
     if (isPlaying) {
-      audioPlayer.pause();
+      destroyStream();
     } else {
-      audioPlayer.play();
+      initializeStream();
     }
-    isPlaying = !isPlaying;
   }
 
   function updateVolume() {
+    if (audioPlayer) {
+      audioPlayer.volume = volume;
+    }
+  }
+
+  $: if (audioPlayer) {
     audioPlayer.volume = volume;
   }
 </script>
+
+<svelte:head>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</svelte:head>
 
 <div class="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-screen">
   <img src="/img/jamm.svg" alt="JAMM Logo" class="w-24 mb-12" />
@@ -98,4 +178,10 @@
       <p class="text-sm">{nextTrack.title} - {nextTrack.artist}</p>
     </div>
   </div>
+
+  {#if errorMessage}
+    <div class="mt-4 p-4 bg-red-500 text-white rounded">
+      {errorMessage}
+    </div>
+  {/if}
 </div>
